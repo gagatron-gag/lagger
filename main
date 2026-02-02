@@ -1,0 +1,200 @@
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local player = Players.LocalPlayer
+local PlayerGui = player:WaitForChild("PlayerGui", 10)
+if not PlayerGui then return end
+
+local character = nil
+local backpack = nil
+
+local function onCharacterAdded(char)
+    character = char
+    backpack = player:WaitForChild("Backpack", 5)
+end
+
+if player.Character then
+    onCharacterAdded(player.Character)
+end
+
+player.CharacterAdded:Connect(onCharacterAdded)
+player.CharacterRemoving:Connect(function()
+    character = nil
+end)
+
+local function cleanObject(obj)
+    if not obj or not obj.Parent then return end
+    pcall(function()
+        if obj:IsA("ParticleEmitter")
+        or obj:IsA("Trail")
+        or obj:IsA("Accessory")
+        or obj:IsA("Hat")
+        or obj:IsA("Decal")
+        or obj:IsA("Texture") then
+            obj:Destroy()
+        end
+    end)
+end
+
+for _, obj in ipairs(Workspace:GetDescendants()) do
+    task.spawn(cleanObject, obj)
+end
+
+for _, p in ipairs(Players:GetPlayers()) do
+    if p.Character then
+        for _, child in ipairs(p.Character:GetChildren()) do
+            task.spawn(cleanObject, child)
+        end
+    end
+    p.CharacterAdded:Connect(function(char)
+        task.wait(0.05)
+        for _, child in ipairs(char:GetChildren()) do
+            task.spawn(cleanObject, child)
+        end
+    end)
+end
+
+Workspace.DescendantAdded:Connect(function(obj)
+    task.defer(cleanObject, obj)
+end)
+
+Players.PlayerAdded:Connect(function(p)
+    p.CharacterAdded:Connect(function(char)
+        task.wait(0.05)
+        for _, child in ipairs(char:GetChildren()) do
+            task.spawn(cleanObject, child)
+        end
+    end)
+end)
+
+local ui = Instance.new("ScreenGui")
+ui.Name = "ServerCrasher"
+ui.ResetOnSpawn = false
+ui.Parent = PlayerGui
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 200, 0, 100)
+frame.Position = UDim2.new(0.3, 0, 0.3, 0)
+frame.BackgroundColor3 = Color3.fromRGB(10,10,10)
+frame.BorderSizePixel = 0
+frame.Active = true
+frame.Draggable = true
+frame.Parent = ui
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0,12)
+corner.Parent = frame
+
+local stroke = Instance.new("UIStroke")
+stroke.Color = Color3.fromRGB(40,40,40)
+stroke.Thickness = 3
+stroke.Parent = frame
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1,-20,0,28)
+title.Position = UDim2.new(0,37,0,0)
+title.BackgroundTransparency = 1
+title.Text = "Server Crasher"
+title.TextColor3 = Color3.fromRGB(230,230,230)
+title.Font = Enum.Font.GothamSemibold
+title.TextSize = 20
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.Parent = frame
+
+local start = Instance.new("TextButton")
+start.Size = UDim2.new(0,180,0,50)
+start.Position = UDim2.new(0,10,0,40)
+start.BackgroundColor3 = Color3.fromRGB(20,20,20)
+start.Text = "Start"
+start.TextColor3 = Color3.fromRGB(255,255,255)
+start.Font = Enum.Font.GothamSemibold
+start.TextSize = 20
+start.BorderSizePixel = 0
+start.Parent = frame
+
+local startCorner = Instance.new("UICorner")
+startCorner.CornerRadius = UDim.new(0,10)
+startCorner.Parent = start
+
+local function findRemote(name)
+    local pkgs = ReplicatedStorage:FindFirstChild("Packages")
+    if not pkgs then return nil end
+    local net = pkgs:FindFirstChild("Net")
+    if not net then return nil end
+    return net:FindFirstChild(name)
+end
+
+local busy = false
+
+local function runSequence()
+    if busy then return end
+    busy = true
+
+    character = player.Character or player.CharacterAdded:Wait()
+    backpack = player:WaitForChild("Backpack", 5)
+    if not backpack then busy = false return end
+
+    local quantum = backpack:FindFirstChild("Quantum Cloner")
+    if quantum then
+        quantum.Parent = character
+    end
+
+    task.wait(0.1)
+
+    local firstToolName = nil
+    for _, tool in ipairs(backpack:GetChildren()) do
+        if tool:IsA("Tool") and tool.Name:sub(-4) == "Slap" then
+            tool.Parent = character
+            if not firstToolName then
+                firstToolName = tool.Name
+            end
+        end
+    end
+
+    if not firstToolName and quantum then
+        firstToolName = quantum.Name
+    end
+
+    local useItem = findRemote("RE/UseItem")
+    if useItem then
+        pcall(function()
+            useItem:FireServer(firstToolName)
+        end)
+    end
+
+    local teleport = findRemote("RE/QuantumCloner/OnTeleport")
+    if teleport then
+        pcall(function()
+            teleport:FireServer()
+        end)
+    end
+
+    task.wait(0.5)
+
+    if useItem then
+        pcall(function()
+            useItem:FireServer(firstToolName)
+        end)
+    end
+
+    for _, tool in ipairs(character:GetChildren()) do
+        if tool:IsA("Tool") then
+            tool.Parent = backpack
+        end
+    end
+
+    task.wait(0.1)
+
+    local flyingCarpet = backpack:FindFirstChild("Flying Carpet")
+    if flyingCarpet then
+        flyingCarpet.Parent = character
+        pcall(function()
+            flyingCarpet:Activate()
+        end)
+    end
+
+    busy = false
+end
+
+start.MouseButton1Click:Connect(runSequence)
